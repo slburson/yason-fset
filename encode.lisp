@@ -5,7 +5,7 @@
 ;;
 ;; Please see the file LICENSE in the distribution.
 
-(in-package :yason)
+(in-package :yason-fset)
 
 (defvar *json-output*)
 
@@ -175,6 +175,15 @@
                  object)))
   object)
 
+(defmethod encode ((object fset:map) &optional (stream *json-output*))
+  (if (fset:empty? object)
+      (write-string "{}" stream)
+      (with-aggregate/object (stream #\{ #\})
+        (fset:do-map (key value object)
+	  (with-element-output ()
+            (encode-assoc-key/value key value stream)))))
+  object)
+
 (defmethod encode ((object vector) &optional (stream *json-output*))
   (if (zerop (length object))
       (write-string "[]" stream)
@@ -193,6 +202,13 @@
 
 (defmethod encode ((object list) &optional (stream *json-output*))
   (funcall *list-encoder* object stream))
+
+(defmethod encode ((object fset:seq) &optional (stream *json-output*))
+  (with-aggregate/object (stream #\[ #\])
+    (fset:do-seq (value object)
+      (with-element-output ()
+        (encode value stream)))
+    object))
 
 (defmethod encode ((object symbol) &optional (stream *json-output*))
   (cond ((eq object true)
@@ -494,7 +510,7 @@ LOWERCASE-KEYS? says whether the key should be in lowercase."
     the argument.")
   (:method (object)
     (with-object ()
-      (yason:encode-slots object))))
+      (encode-slots object))))
 
 ;; See discussion at https://github.com/phmarek/yason/issues/74
 #+cmucl

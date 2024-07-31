@@ -5,7 +5,7 @@
 ;;
 ;; Please see the file LICENSE in the distribution.
 
-(in-package :yason)
+(in-package :yason-fset)
 
 (defconstant +default-string-length+ 20
   "Default length of strings that are created while reading json input.")
@@ -22,10 +22,6 @@
   "Function to call to convert a key string in a JSON array to a key
   in the CL hash produced.")
 
-(defvar *parse-json-arrays-as-vectors* nil
-  "If set to a true value, JSON arrays will be parsed as vectors, not
-  as lists.")
-
 (defvar *parse-json-booleans-as-symbols* nil
   "If set to a true value, JSON booleans will be read as the symbols
   TRUE and FALSE, not as T and NIL, respectively.  The actual symbols
@@ -33,13 +29,6 @@
 
 (defvar *parse-json-null-as-keyword* nil
   "If set to a true value, JSON nulls will be read as the keyword :NULL, not as NIL.")
-
-(defvar *parse-object-as* :hash-table
-  "Set to either :hash-table, :plist or :alist to determine the data
-  structure that objects are parsed to.")
-
-(defvar *parse-object-as-alist* nil
-  "DEPRECATED, provided for backward compatibility")
 
 (defun make-adjustable-string ()
   "Return an adjustable empty string, usable as a buffer for parsing strings and numbers."
@@ -121,7 +110,8 @@
             ((and (or (whitespace-p (peek))
                       (eql (peek) #\:))
                   (not string-quoted))
-             (return-from parse-string output))
+             ;; `copy-seq' returns a nonadjustable string (smaller, and faster to access).
+	     (return-from parse-string (copy-seq output)))
             (t
              (outc (next)))))))))
 
@@ -165,24 +155,6 @@
                      (key-string c)))))
 
 
-(defun create-container (ht)
-  (ecase *parse-object-as*
-    ((:plist :alist)
-     nil)
-    (:hash-table
-     ;; Uses hash-table
-     ht)))
-
-(defun add-attribute (to key value)
-  (ecase *parse-object-as*
-    (:plist
-     (append to (list key value)))
-    (:alist
-     (acons key value to))
-    (:hash-table
-     (setf (gethash key to) value)
-     to)))
-
 (define-condition expected-colon (error)
   ((key-string :initarg :key-string
                :reader key-string))
@@ -191,8 +163,7 @@
                      (key-string c)))))
 
 (defun parse-object (input)
-  (let* ((ht (make-hash-table :test #'equal))
-         (return-value (create-container ht)))
+  (let* ((return-value (fset:replay-map)))
     (read-char input)
     (loop
       (when (eql (peek-char-skipping-whitespace input)
@@ -202,7 +173,7 @@
       (let* ((key-string (parse-string input))
              (key (or (funcall *parse-object-key-fn* key-string)
                       (error 'cannot-convert-key :key-string key-string))))
-        (when (nth-value 1 (gethash key ht))
+        (when (fset:domain-contains? return-value key)
           (error 'duplicate-key :key-string key-string))
         (skip-whitespace input)
         (unless (eql #\: (read-char input))
@@ -210,15 +181,12 @@
         (skip-whitespace input)
         (let ((value (parse input)))
           (setf return-value
-                (add-attribute return-value key value))))
+                (fset:with return-value key value))))
       (ecase (peek-char-skipping-whitespace input)
         (#\, (read-char input))
         (#\} nil)))
     (read-char input)
-    (values (if (eq *parse-object-as* :alist)
-                (nreverse return-value)
-                return-value)
-            ht)))
+    return-value))
 
 (defconstant +initial-array-size+ 20
   "Initial size of JSON arrays read, they will grow as needed.")
@@ -237,40 +205,23 @@
   (read-char input))
 
 (defun parse-array (input)
-  (if *parse-json-arrays-as-vectors*
-      (let ((return-value (make-array +initial-array-size+ :adjustable t :fill-pointer 0)))
-        (%parse-array input
-                      (lambda (element)
-                        (vector-push-extend element return-value)))
-        return-value)
-      (let (return-value)
-        (%parse-array input
-                      (lambda (element)
-                        (push element return-value)))
-        (nreverse return-value))))
+  (let ((return-value (fset:seq)))
+    (%parse-array input (lambda (element) (fset:push-last return-value element)))
+    return-value))
 
 (defgeneric parse% (input)
   (:method ((input stream))
-    ;; backward compatibility code
-    (assert (or (not *parse-object-as-alist*)
-                (eq *parse-object-as* :hash-table))
-            () "unexpected combination of *parse-object-as* and *parse-object-as-alist*, please use *parse-object-as* exclusively")
-    (let ((*parse-object-as* (if *parse-object-as-alist*
-                                 :alist
-                                 *parse-object-as*)))
-      ;; end of backward compatibility code
-      (check-type *parse-object-as* (member :hash-table :alist :plist))
-      (ecase (peek-char-skipping-whitespace input)
-        (#\"
-         (parse-string input))
-        ((#\- #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
-         (parse-number input))
-        (#\{
-         (parse-object input))
-        (#\[
-         (parse-array input))
-        ((#\t #\f #\n)
-         (parse-constant input)))))
+    (ecase (peek-char-skipping-whitespace input)
+      (#\"
+        (parse-string input))
+      ((#\- #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
+        (parse-number input))
+      (#\{
+        (parse-object input))
+      (#\[
+        (parse-array input))
+      ((#\t #\f #\n)
+        (parse-constant input))))
   (:method ((input pathname))
     (with-open-file (stream input)
       (parse stream)))
@@ -280,8 +231,6 @@
 (defun parse (input
               &key
                 (object-key-fn *parse-object-key-fn*)
-                (object-as *parse-object-as*)
-                (json-arrays-as-vectors *parse-json-arrays-as-vectors*)
                 (json-booleans-as-symbols *parse-json-booleans-as-symbols*)
                 (json-nulls-as-keyword *parse-json-null-as-keyword*))
   "Parse INPUT, which needs to be a string or a stream, as JSON.
@@ -289,8 +238,6 @@
   keyword arguments can be used to override the parser settings as
   defined by the respective special variables."
   (let ((*parse-object-key-fn* object-key-fn)
-        (*parse-object-as* object-as)
-        (*parse-json-arrays-as-vectors* json-arrays-as-vectors)
         (*parse-json-booleans-as-symbols* json-booleans-as-symbols)
         (*parse-json-null-as-keyword* json-nulls-as-keyword))
     (parse% input)))

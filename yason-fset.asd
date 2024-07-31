@@ -14,8 +14,8 @@
 
 (in-package :yason.system)
 
-(defsystem :yason
-  :name "YASON"
+(defsystem :yason-fset
+  :name "YASON-FSet"
   :author "Hans Huebner <hans@huebner.org>"
   :version "0.8.3"
   :licence "BSD"
@@ -24,9 +24,12 @@
     decoding data in the JSON interchange format.  JSON is used as a
     lightweight alternative to XML.  YASON has the sole purpose of
     encoding and decoding data and does not impose any object model on
-    the Common Lisp application that uses it."
+    the Common Lisp application that uses it.
 
-  :depends-on (:alexandria :trivial-gray-streams)
+    YASON-FSet is a fork of YASON that uses FSet seqs for lists and FSet
+    maps for objects."
+
+  :depends-on (:alexandria :trivial-gray-streams :fset)
   :components ((:file "package")
 	       (:file "encode" :depends-on ("package"))
 	       (:file "parse" :depends-on ("package"))))

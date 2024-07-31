@@ -5,7 +5,7 @@
 ;;
 ;; Please see the file LICENSE in the distribution.
 
-(defpackage :yason
+(defpackage :yason-fset
 
   (:use :cl)
 
@@ -13,9 +13,6 @@
    ;; Parser
    #:parse
    #:*parse-object-key-fn*
-   #:*parse-object-as*
-   #:*parse-object-as-alist* ; deprecated
-   #:*parse-json-arrays-as-vectors*
    #:*parse-json-booleans-as-symbols*
    #:*parse-json-null-as-keyword*
 
