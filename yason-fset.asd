@@ -31,5 +31,5 @@
 
   :depends-on (:alexandria :trivial-gray-streams :fset)
   :components ((:file "package")
-	       (:file "encode" :depends-on ("package"))
-	       (:file "parse" :depends-on ("package"))))
+	       (:file "parse" :depends-on ("package"))
+	       (:file "encode" :depends-on ("package" "parse"))))
