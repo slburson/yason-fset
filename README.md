@@ -1,13 +1,10 @@
-YASON
-=====
+YASON-FSet
+==========
 
-> YASON is a Common Lisp library for encoding and decoding data in the
-> [JSON](https://raw.github.com/phmarek/clixdoc/master/clixdoc.xsl)
-> interchange format.  JSON is used as a lightweight alternative to
-> XML.  YASON has the sole purpose of encoding and decoding data and
-> does not impose any object model on the Common Lisp application that
-> uses it.
+This is a fork of [YASON](https://github.com/phmarek/yason) that parses
+into FSet seqs and maps, and can write those types also.
 
-Please proceed to the [Documentation](http://phmarek.github.io/yason)
+[JFon](https://github.com/djha-skin/jfon) is probably a better choice.
+See [Sabra Colleton's in-depth review of JSON libraries for
+CL](https://sabracrolleton.github.io/json-review).
 
-This project was maintained by https://github.com/hanshuebner/ until 2019.
